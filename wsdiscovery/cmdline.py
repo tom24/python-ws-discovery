@@ -13,8 +13,8 @@ logging.basicConfig()
 DEFAULT_LOGLEVEL = logging.INFO
 
 @contextmanager
-def discovery(capture=None):
-    wsd = WSDiscovery(capture=capture)
+def discovery(capture=None, addmembership=False):
+    wsd = WSDiscovery(capture=capture, addmembership=addmembership)
     wsd.start()
     yield wsd
     wsd.stop()
@@ -46,12 +46,13 @@ def get_logger(name, loglevel):
 @click.option('--port', '-p', type=int, help='Service port')
 @click.option('--loglevel', '-l',  help='Log level; one of INFO, DEBUG, WARNING, ERROR')
 @click.option('--capture', '-c', nargs=1, type=click.File('w'), help='Capture messages to a file')
-def discover(scope, address, port, loglevel, capture):
+@click.option('--joinmcg', '-j', is_flag=True, help='Join multicast group before probes')
+def discover(scope, address, port, loglevel, capture, joinmcg):
     "Discover services using WS-Discovery"
 
     logger = get_logger("ws-discovery", loglevel)
 
-    with discovery(capture) as wsd:
+    with discovery(capture,addmembership=joinmcg) as wsd:
         scopes = [Scope(scope)] if scope else []
         svcs = wsd.searchServices(scopes=scopes, address=address, port=port)
         print("\nDiscovered:\n")

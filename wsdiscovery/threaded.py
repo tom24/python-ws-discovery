@@ -73,7 +73,7 @@ class AddressMonitorThread(_StoppableDaemonThread):
 
 
 class NetworkingThread(_StoppableDaemonThread):
-    def __init__(self, observer, capture=None):
+    def __init__(self, observer, capture=None, addmembership=False):
         super(NetworkingThread, self).__init__()
 
         self.setDaemon(True)
@@ -85,6 +85,7 @@ class NetworkingThread(_StoppableDaemonThread):
         self._capture = observer._capture
         self._seqnum = 1 # capture sequence number
         self._selector = selectors.DefaultSelector()
+        self._addmembership = addmembership
 
     @staticmethod
     def _makeMreq(addr):
@@ -118,7 +119,8 @@ class NetworkingThread(_StoppableDaemonThread):
     def addSourceAddr(self, addr):
         """None means 'system default'"""
         try:
-            self._multiInSocket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, self._makeMreq(addr))
+            if self._addmembership:
+                self._multiInSocket.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, self._makeMreq(addr))
         except socket.error:  # if 1 interface has more than 1 address, exception is raised for the second
             pass
 
@@ -128,7 +130,8 @@ class NetworkingThread(_StoppableDaemonThread):
 
     def removeSourceAddr(self, addr):
         try:
-            self._multiInSocket.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, self._makeMreq(addr))
+            if self._addmembership:
+                self._multiInSocket.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, self._makeMreq(addr))
         except socket.error:  # see comments for setsockopt(.., socket.IP_ADD_MEMBERSHIP..
             pass
 
@@ -263,16 +266,17 @@ class NetworkingThread(_StoppableDaemonThread):
 class ThreadedNetworking:
     "handle threaded networking start & stop, address add/remove & message sending"
 
-    def __init__(self, **kwargs):
+    def __init__(self, addmembership=False, **kwargs):
         self._networkingThread = None
         self._serverStarted = False
+        self._addmembership=addmembership
         super().__init__(**kwargs)
 
     def _startThreads(self):
         if self._networkingThread is not None:
             return
 
-        self._networkingThread = NetworkingThread(self)
+        self._networkingThread = NetworkingThread(self, addmembership=self._addmembership)
         self._networkingThread.start()
         logger.debug("networking thread started")
         self._addrsMonitorThread = AddressMonitorThread(self)
